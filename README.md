@@ -1,6 +1,8 @@
 # Simple Manifest Server
 A lightweight PHP server for storing and serving [IIIF](https://iiif.io/) manifests, built for the [Bibliotheca Hertziana](https://www.biblhertz.it/). Manifests are linked to research publications managed in OJS. Public read access is open; write and delete operations require authentication. All manifests are validated against the [IIIF Presentation Validator](https://github.com/IIIF/presentation-validator) before storage.
 
+> This repository is a sanitized public release derived from the institution's internal development history. Commit history was reset to remove internal artifacts; it does not reflect the full development record of the original project.
+
 ## Table of Contents
 
 - [Architecture](#architecture)
@@ -12,6 +14,9 @@ A lightweight PHP server for storing and serving [IIIF](https://iiif.io/) manife
 - [API Reference](#api-reference)
 - [Testing](#testing)
 - [PHP cURL Examples](#php-curl-examples)
+- [Credits](#credits)
+- [Funding](#funding)
+- [License](#license)
 
 ---
 
@@ -317,3 +322,21 @@ curl_close($curl);
 ```
 
 > **Nginx body size:** The nginx config sets `client_max_body_size 50M` to allow large manifests (default is 1 MB). Adjust in `docker/nginx/nginx.conf` if needed.
+
+---
+
+## Credits
+
+Originally developed by Chris Tomlinson ([@hawkenbury](https://github.com/hawkenbury)), with contributions from Carlo Teo Pedretti ([@friendlynihilist](https://github.com/friendlynihilist)).
+
+---
+
+## Funding
+
+The development of the PubLink platform was made possible by a grant from the Deutsche Forschungsgemeinschaft (DFG) — Project number [501142032](https://gepris.dfg.de/gepris/projekt/501142032).
+
+---
+
+## License
+
+MIT — see [LICENSE](LICENSE).
