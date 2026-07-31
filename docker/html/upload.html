@@ -1,0 +1,269 @@
+<?php
+require 'vendor/autoload.php';
+
+use Biblhertz\Manifest_Server\pages\Manifest_Server_Page;
+use Biblhertz\Manifest_Server\pages\htmlPage;
+use Biblhertz\Manifest_Server\Config;
+use Biblhertz\Manifest_Server\api\ApiController;
+use Biblhertz\Manifest_Server\api\ApiUser;
+
+$page=new Manifest_Server_Page();
+$page->setHeading("Upload Manifest File");
+
+$content="";
+$error=$stored=false;
+
+if(isset($_REQUEST['postManifest'])){
+    error_log("Calling :: ".Config::$PUT_MANIFEST);
+    $user=new ApiUser();
+    $user->setServiceURL(Config::$PUT_MANIFEST);
+    $user->setApiKey(trim($_POST['api_key']));
+    $user->setPayload(array(
+                        'series'=>$_POST['series'],
+                        'volume'=>$_POST['volume'],
+                        'manifest_name'=>$_POST['manifest_name'],
+                        'manifest' => $_POST['manifest'],
+                        'ignore_mismatch' => isset($_POST['ignore_mismatch'])?1:0,
+                        'ignore_overwrite' => isset($_POST['ignore_overwrite'])?1:0
+                        )
+                    );
+    $json=$user->postMessage();
+    //echo("JSON response :: $json");
+    $apiResponse=json_decode($json,true);
+    error_log("JSON Response :: ".$json);
+    
+    //get post validation errors
+    $error=ApiUser::getErrorList($apiResponse, "Validation Errors");
+    //item wasn't stored
+    if($error){
+        $content=$error;
+    }
+    //if item has been stored
+    else{
+        $url=$apiResponse['url'];
+        $stored=true;
+        $content="Manifest is stored as <a href=\"$url\" target=\"$url\">$url</a><br/>";
+        $content.="View in manifest viewer <a href=\"viewer.html?manifest=$url\" target=\"m_$url\">Click here</a>";
+
+        if(isset($apiResponse['iiif_validation_result']))
+            $content.=ApiUser::getErrorList($apiResponse['iiif_validation_result'], "IIIF Validation Errors");
+
+        $content.=  "<hr/><h3>Remove this manifest</h3>".
+                        htmlPage::makeFormHead("upload.html").
+                        "<div style=\"margin-top: 20px;\">".
+                        getCredentialsForm().
+                        "<div style=\"margin-top: 20px;\"><button type=\"submit\" id=\"postButton\" name=\"removeManifest\">Remove Manifest</button></div>".
+                        htmlPage::makeHiddenInput("url",$url).
+                        "</div>"
+                        .htmlPage::makeFormFoot();
+
+        $content.="<hr/><a href=\"upload.html\">Upload Another</a>";   
+
+        }
+    }
+    //else remove manifest call
+    else if(isset($_REQUEST['removeManifest'])){
+        $user=new ApiUser();
+        $user->setServiceURL(Config::$REMOVE_MANIFEST);
+        $user->setApiKey(trim($_POST['api_key']));
+        $user->setPayload(array(
+                        'url'=>$_POST['url'],
+                        )
+                    );
+        $json=$user->postMessage();
+        $apiResponse=json_decode($json,true);
+        $error=ApiUser::getErrorList($apiResponse, "Validation Errors");
+        if(!$error&&isset($apiResponse['message']))$content=$apiResponse['message'];
+        else $content=$error;
+        $stored=true;
+        $page->setHeading("Remove Manifest");
+        $content.="<hr/><a href=\"upload.html\">Upload Manifest</a>";
+        //echo print_r($apiResponse,true);
+    }
+
+
+
+$style=getStyle();
+
+if(!$stored)$display="$style<div>$content</div><div>".getForm()."</div>";
+else $display="$style<div>$content</div>";
+
+$page->setCentralContent($display);
+
+echo $page->getPage();
+
+
+function getForm(){
+    global $error;
+    $form=htmlPage::makeFormHead("upload.html");
+    $options=array();
+    $options[0][0]=$options[0][1]="Select Series ....";
+    $c=1;
+    foreach(Config::$validSeries as $series){
+        $options[$c][0]=$options[$c][1]=$series;
+        $c++;
+    }
+    $form.="<div style=\"margin-top: 20px;\">
+                <label for=\"series\">Select Journal:</label>".
+                htmlPage::makeOptionFromArray("series",$options,$error&&isset($_REQUEST['series'])?$_REQUEST['series']:"").
+            "</div>";
+    $form.="<div style=\"margin-top: 20px;\">";
+                $value="";
+                if($error&&isset($_REQUEST['volume']))$value="value=\"".$_REQUEST['volume']."\"";
+                //echo $value;
+                $form.="<label for=\"monthInput\">Select volume (01-99):</label>
+                <input type=\"number\" min=\"01\" max=\"99\" id=\"monthInput\" name=\"volume\" $value>
+            <div>";
+    $form.="<div style=\"margin-top: 20px;\">";
+                $value="";
+                if($error&&isset($_REQUEST['manifest_name']))$value="value=\"".$_REQUEST['manifest_name']."\"";
+                $form.="<label for=\"fileName\">Manifest Name:</label>
+                <input type=\"text\" id=\"fileName\" name=\"manifest_name\" $value placeholder=\"Manifest File Name ...\">
+            </div>";
+    $form.="<div style=\"margin-top: 20px;\">";
+                $value="";
+                if($error&&isset($_REQUEST['manifest']))$value=$_REQUEST['manifest'];
+                $form.="<label for=\"contentArea\">Manifest content:</label>
+                <textarea id=\"contentArea\" name=\"manifest\" rows=\"6\" cols=\"50\" placeholder=\"Paste or type your manifest here...\">$value</textarea>
+            </div>";
+    $form.=getCredentialsForm();
+    $form.="<div class=\"checkbox-item\" style=\"margin-top: 20px;\">";
+                $value=0;
+                if($error&&isset($_REQUEST['ignore_mismatch']))$value=$_REQUEST['ignore_mismatch'];
+                $form.="<label for=\"ignore_mismatch\">Ignore mismatch between storage URL and ID in manifest</label>
+                        <input type=\"checkbox\" id=\"ignore_mismatch\" name=\"ignore_mismatch\" value=\"$value\">
+                        
+            </div>";
+    $form.="<div class=\"checkbox-item\" style=\"margin-top: 20px;\">";
+                $value=0;
+                if($error&&isset($_REQUEST['ignore_overwrite']))$value=$_REQUEST['ignore_overwrite'];
+                $form.="<label for=\"ignore_overwrite\">Allow overwrite of existing manifest</label>
+                        <input type=\"checkbox\" id=\"ignore_overwrite\" name=\"ignore_overwrite\" value=\"$value\">             
+            </div>";
+    $form.="<div style=\"margin-top: 20px;\">
+                <button type=\"submit\" id=\"postButton\" name=\"postManifest\">Post Manifest</button>
+            </div>";
+
+    $form.=htmlPage::makeFormFoot();
+    return $form;
+}
+
+function getCredentialsForm(){
+    $form="<div style=\"margin-top: 20px;\">";
+    $form.="<label for=\"api_key\">API Key:</label>
+                <input type=\"password\" id=\"api_key\" name=\"api_key\" placeholder=\"API Key\">
+            </div>";
+    return $form;
+}
+
+function getStyle(){
+    return "<style>* {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            min-height: 100vh;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+        
+        .form-container {
+            background: white;
+            padding: 40px;
+            border-radius: 15px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.15);
+            width: 100%;
+            max-width: 500px;
+        }
+        
+        h1 {
+            text-align: center;
+            color: #333;
+            margin-bottom: 30px;
+            font-weight: 600;
+        }
+        
+        .form-group {
+            margin-bottom: 20px;
+        }
+        
+        label {
+            display: block;
+            margin-bottom: 8px;
+            color: #555;
+            font-weight: 500;
+            font-size: 14px;
+        }
+        
+        input, select, textarea {
+            width: 100%;
+            padding: 12px 16px;
+            font-size: 16px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            background: #fafafa;
+            transition: all 0.3s ease;
+        }
+        
+        input:focus, select:focus, textarea:focus {
+            outline: none;
+            border-color: #667eea;
+            background: white;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+        
+        button {
+            width: 25%;
+            padding: 14px 24px;
+            font-size: 16px;
+            font-weight: 600;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(102, 126, 234, 0.4);
+        }
+        
+        button:active {
+            transform: translateY(0);
+        }
+        
+        textarea {
+            resize: vertical;
+            min-height: 120px;
+            font-family: inherit;
+        }
+        
+        select {
+            cursor: pointer;
+        }
+        
+        .form-group:last-of-type {
+            margin-top: 30px;
+        }
+        
+        .checkbox-item {
+            margin: 10px 0;
+            display: flex;
+            align-items: center;
+        }
+        
+        .checkbox-item input[type=\"checkbox\"] {
+            margin-right: 8px;
+            transform: scale(1.2);
+        }
+    </style>";
+}
+?>

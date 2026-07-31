@@ -1,0 +1,14 @@
+/docker/html/iiif_manifests/
+/docker/vendor/
+/src
+/html
+/vendor
+/composer.json
+/composer.lock
+/docker/docker_setup.bat
+/docker/docker_setup.csh
+/iiif_manifests/
+/docker/iiif_manifests/
+/docker/.env
+.env
+.claude/

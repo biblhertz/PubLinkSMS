@@ -1,0 +1,333 @@
+openapi: 3.0.0
+info:
+  title: IIIF Simple Manifest Server API
+  description: API for storing and removing IIIF manifests in a file store
+  version: 1.0.0
+  contact:
+    name: API Support
+    email: christopher.tomlinson@biblhertz.it
+servers:
+  - url: https://annotation.biblhertz.it/api/v1
+    description: Production server
+  - url: http://localhost/api/v1
+    description: Development server
+
+paths:
+  /putManifest:
+    post:
+      summary: Store a IIIF manifest
+      description: |
+        Store a IIIF manifest in the file store at `{series}/{volume}/{manifest_name}`.
+
+        **Note:** All parameters must be JSON-encoded and sent as the value of a single
+        form field called `data`. If `manifest_name` does not already end in `.json`,
+        the extension is appended automatically.
+
+        The manifest is passed to the IIIF Presentation Validator before being written
+        to disk. Validation runs against the public URL of the stored file, so in Docker
+        deployments (where the validator uses an internal network address) set
+        `ignore_mismatch` to `true`.
+      tags:
+        - IIIF Manifests
+      security:
+        - basicAuth: []
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              required:
+                - data
+              properties:
+                data:
+                  type: string
+                  description: >
+                    JSON string containing the request parameters: series, volume,
+                    manifest_name, manifest, ignore_mismatch, ignore_overwrite.
+                  example: >
+                    {"series":"MRAS","volume":"01","manifest_name":"book-of-hours",
+                    "manifest":"{\"@context\":\"http://iiif.io/api/presentation/3/context.json\",\"id\":\"https://annotation.biblhertz.it/iiif_manifests/MRAS/01/book-of-hours.json\",\"type\":\"Manifest\",\"label\":{\"en\":[\"Book of Hours\"]}}",
+                    "ignore_mismatch":true,"ignore_overwrite":true}
+      responses:
+        '200':
+          description: |
+            Request processed. Check the `success` field in the response body —
+            validation failures are also returned as 200 with `success: false`.
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: '#/components/schemas/ManifestResponse'
+                  - $ref: '#/components/schemas/ValidationErrorResponse'
+        '401':
+          description: Unauthorized — invalid or missing HTTP Basic credentials
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '422':
+          description: Unprocessable entity — request method not supported (must be POST)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /removeManifest:
+    post:
+      summary: Remove a IIIF manifest
+      description: |
+        Remove a IIIF manifest from the file store using its public URL.
+
+        **Note:** The `url` parameter is the full public URL of the manifest as it
+        appears in the file store (e.g. `https://annotation.biblhertz.it/iiif_manifests/MRAS/01/book-of-hours.json`).
+        If the URL does not end in `.json`, the extension is appended automatically.
+        The parameter must be JSON-encoded and sent in a form field called `data`.
+      tags:
+        - IIIF Manifests
+      security:
+        - basicAuth: []
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              required:
+                - data
+              properties:
+                data:
+                  type: string
+                  description: JSON string containing the `url` of the manifest to delete.
+                  example: '{"url":"https://annotation.biblhertz.it/iiif_manifests/MRAS/01/book-of-hours.json"}'
+      responses:
+        '200':
+          description: |
+            Request processed. Check the `success` field — the manifest may not have
+            existed, in which case `success` is `false` with an explanatory message.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RemoveResponse'
+        '401':
+          description: Unauthorized — invalid or missing HTTP Basic credentials
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '422':
+          description: Unprocessable entity — request method not supported (must be POST)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+components:
+  securitySchemes:
+    basicAuth:
+      type: http
+      scheme: basic
+      description: HTTP Basic Authentication. Credentials are configured in config.ini.
+
+  schemas:
+    PutManifestRequest:
+      type: object
+      description: Parameters for storing a IIIF manifest. All fields are sent JSON-encoded in the `data` form parameter.
+      required:
+        - series
+        - volume
+        - manifest_name
+        - manifest
+      properties:
+        series:
+          type: string
+          description: >
+            Series identifier. Must match one of the values in `valid_series` in
+            config.ini. The server returns the full list of accepted values in the
+            error response if an invalid series is supplied.
+          example: "MRAS"
+        volume:
+          type: string
+          pattern: "^[0-9]{2}$"
+          description: Two-digit volume number.
+          example: "01"
+        manifest_name:
+          type: string
+          description: Filename for the manifest. A `.json` extension is appended if not already present.
+          example: "book-of-hours.json"
+        manifest:
+          type: string
+          description: Full IIIF manifest as a JSON string.
+          example: >
+            {"@context":"http://iiif.io/api/presentation/3/context.json",
+            "id":"https://annotation.biblhertz.it/iiif_manifests/MRAS/01/book-of-hours.json",
+            "type":"Manifest","label":{"en":["Book of Hours"]}}
+        ignore_mismatch:
+          type: boolean
+          description: >
+            If `true`, suppress errors when the manifest `id` URL does not match
+            the URL used by the validator. Should be `true` in Docker deployments
+            where the validator runs on an internal network address.
+          example: true
+        ignore_overwrite:
+          type: boolean
+          description: If `true`, overwrite an existing manifest with the same path.
+          example: true
+
+    IIIFManifest:
+      type: object
+      description: A IIIF Presentation API 3.0 manifest
+      required:
+        - "@context"
+        - id
+        - type
+        - label
+      properties:
+        "@context":
+          type: string
+          example: "http://iiif.io/api/presentation/3/context.json"
+        id:
+          type: string
+          format: uri
+          description: Public URL of the manifest. Must match the file-store URL unless `ignore_mismatch` is set.
+          example: "https://annotation.biblhertz.it/iiif_manifests/MRAS/01/book-of-hours.json"
+        type:
+          type: string
+          enum: ["Manifest"]
+          example: "Manifest"
+        label:
+          type: object
+          description: Human-readable label in multiple languages (language-map format).
+          additionalProperties:
+            type: array
+            items:
+              type: string
+          example:
+            en: ["Book of Hours"]
+        summary:
+          type: object
+          additionalProperties:
+            type: array
+            items:
+              type: string
+        metadata:
+          type: array
+          items:
+            type: object
+            properties:
+              label:
+                type: object
+                additionalProperties:
+                  type: array
+                  items:
+                    type: string
+              value:
+                type: object
+                additionalProperties:
+                  type: array
+                  items:
+                    type: string
+        items:
+          type: array
+          description: Canvases that make up the manifest.
+          items:
+            type: object
+        viewingDirection:
+          type: string
+          enum: ["left-to-right", "right-to-left", "top-to-bottom", "bottom-to-top"]
+
+    ManifestResponse:
+      type: object
+      description: Successful response from putManifest.
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: "IIIF manifest stored successfully : new file created"
+        url:
+          type: string
+          format: uri
+          description: Public URL of the stored manifest.
+          example: "https://annotation.biblhertz.it/iiif_manifests/MRAS/01/book-of-hours.json"
+        timestamp:
+          type: string
+          format: date-time
+          example: "2024-01-15T10:30:00+00:00"
+        size:
+          type: integer
+          description: Size of the stored manifest file in bytes.
+          example: 15420
+        iiif_validation_result:
+          type: object
+          description: Raw response from the IIIF Presentation Validator service.
+
+    ValidationErrorResponse:
+      type: object
+      description: Returned (with HTTP 200) when the submitted parameters fail server-side validation.
+      properties:
+        success:
+          type: boolean
+          example: false
+        message:
+          type: string
+          example: "Validation error(s)"
+        timestamp:
+          type: string
+          format: date-time
+          example: "2024-01-15T10:30:00+00:00"
+        data_received:
+          type: object
+          description: The decoded payload that was received, for debugging.
+        errorList:
+          type: array
+          items:
+            type: object
+            properties:
+              title:
+                type: string
+                example: "Series Error"
+              detail:
+                type: string
+                example: "Error : the series field given is not one of the set [MRAS, HSAH]"
+
+    RemoveResponse:
+      type: object
+      description: Response from removeManifest. Returned for both successful deletion and file-not-found cases.
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: "Manifest file at https://annotation.biblhertz.it/iiif_manifests/MRAS/01/book-of-hours.json has been deleted"
+        url:
+          type: string
+          format: uri
+          description: URL of the manifest that was targeted.
+          example: "https://annotation.biblhertz.it/iiif_manifests/MRAS/01/book-of-hours.json"
+        timestamp:
+          type: string
+          format: date-time
+          example: "2024-01-15T10:30:00+00:00"
+
+    Error:
+      type: object
+      description: Returned for 422 and 500 errors.
+      properties:
+        error:
+          type: string
+          example: "Something went wrong! Please contact support."

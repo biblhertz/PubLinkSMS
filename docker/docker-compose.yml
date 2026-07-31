@@ -1,0 +1,80 @@
+networks:
+  manifest-server-network:
+    driver: bridge
+services:
+  web:
+    build:
+     context: .
+     dockerfile: nginx.Dockerfile
+    restart: always
+    container_name: web
+    ports:
+      - '${HTTP_PORT:-8080}:80'
+    depends_on:
+      - php-fpm
+    volumes:
+       - ./iiif_manifests:/var/www/html/iiif_manifests
+    networks:
+      - manifest-server-network
+
+
+  php-fpm:
+    build:
+      context: .
+      dockerfile: php.Dockerfile
+    restart: always
+    container_name: php-fpm
+    environment:
+      DB_HOST: ${DB_HOST:-mysql}
+      DB_NAME: ${DB_NAME:-manifest_server}
+      DB_USER: ${DB_USER:-manifest_user}
+      DB_PASSWORD: ${DB_PASSWORD}
+      API_USERNAME: ${API_USERNAME:-}
+      API_PASSWORD: ${API_PASSWORD:-}
+      API_KEY: ${API_KEY:-}
+      FILE_STORE_URL: ${FILE_STORE_URL:-http://localhost/iiif_manifests}
+      INTERNAL_FILE_STORE_URL: ${INTERNAL_FILE_STORE_URL:-http://web:80/iiif_manifests}
+      IIIF_VALIDATOR: ${IIIF_VALIDATOR:-http://validator:8080/validate?version=3.0}
+      PUT_MANIFEST: ${PUT_MANIFEST:-http://web:80/api/v1/putManifest}
+      REMOVE_MANIFEST: ${REMOVE_MANIFEST:-http://web:80/api/v1/removeManifest}
+      ENVIRONMENT: ${ENVIRONMENT:-1}
+      VALID_SERIES: ${VALID_SERIES:-}
+      FLEXIBLE_SERIES: ${FLEXIBLE_SERIES:-}
+    depends_on:
+      - mysql
+    volumes:
+       - ./iiif_manifests:/var/www/html/iiif_manifests
+    networks:
+      - manifest-server-network
+
+  mysql:
+    build:
+      context: .
+      dockerfile: mysql.Dockerfile
+    restart: always
+    container_name: mysql
+    environment:
+      MYSQL_ROOT_PASSWORD: ${DB_PASSWORD}
+      MYSQL_ALLOW_EMPTY_PASSWORD: 'yes'
+      MYSQL_DATABASE: ${DB_NAME:-manifest_server}
+      MYSQL_USER: ${DB_USER:-manifest_user}
+      MYSQL_PASSWORD: ${DB_PASSWORD}
+    ports:
+      - '${MYSQL_PORT:-3306}:3306'
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "--silent"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    networks:
+      - manifest-server-network
+
+  validator:
+    build:
+      context: .
+      dockerfile: validator.Dockerfile
+    restart: always
+    container_name: validator
+    networks:
+      - manifest-server-network

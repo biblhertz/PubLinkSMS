@@ -1,0 +1,477 @@
+<?php
+namespace Biblhertz\Manifest_Server\pages;
+
+
+/********************************************************************/
+/*	class.htmlPage.php                                              */
+/*                                                                  */
+/* generalised html page object	                                    */
+/* static methods in this class do lots of simple functions 	    */
+/*																	*/
+/*	Author 	: 	Chris Tomlinson										*/
+/*  Date	:	March 2023										    */
+/********************************************************************/	
+/****************************************************************/
+/* 						                                         */
+/****************************************************************/
+
+abstract class htmlPage
+{
+
+/****************************************************************/
+/*	CLASS CONSTRUCTOR											*/
+/****************************************************************/
+public function _construct(){
+date_default_timezone_set('UTC');
+}
+
+
+/****************************************************************/
+/*	INSTANCE VARIABLES											*/
+/****************************************************************/
+private static $siteRoot;									//the root of the site
+private static $creator="";	                                //creator of the page
+private static $imageRoot;									//root of images
+private static $xslRoot;									//root of xsl style sheets
+private static $cssRoot;									//root of css style sheets
+private static $jsRoot;										//root of javascripts
+/****************************************************************/
+/*	INTERFACE METHODS											*/
+/****************************************************************/
+public static function setSiteRoot($r){htmlPage::$siteRoot=$r;}
+public static function getSiteRoot(){return htmlPage::$siteRoot;}
+public static function setCreator($r){htmlPage::$creator=$r;}
+public static function getCreator(){return htmlPage::$creator;}
+public static function getParagraph($text){return "<p>$text</p>";}
+public static function setXSLRoot($r){htmlPage::$xslRoot=$r;}
+public static function getXSLRoot(){return htmlPage::$xslRoot;}
+public static function setImageRoot($r){htmlPage::$imageRoot=$r;}
+public static function getImageRoot(){return htmlPage::$imageRoot;}
+public static function setCssRoot($r){htmlPage::$cssRoot=$r;}
+public static function getCssRoot(){return htmlPage::$cssRoot;}
+public static function setJSRoot($r){htmlPage::$jsRoot=$r;}
+public static function getJSRoot(){return htmlPage::$jsRoot;}
+
+/** render text using style sheet **/
+public static function getText($text){return "<p>$text</p>";}
+	
+/** render header text for page **/
+public static function getHeaderText($text){return "<h3>$text</h3>";}
+
+/****************************************************************/
+/*	OTHER METHODS												*/
+/* 	THESE METHODS RENDER SOME PAGE COMPONENTS					*/
+/****************************************************************/
+
+/** Insert an image in a page **/
+public static function makeImage($address,$width,$height,$alt="",$align="baseline",$border=0){
+return "<IMG SRC=\"".$address."\" WIDTH=\"".$width."\" HEIGHT=\"".$height."\" ALT=\"".$alt."\" ALIGN=\"".$align."\" BORDER=\"".$border."\"></IMG>\n";
+}
+
+/** Make a http link **/
+public static function makeLink($address,$text,$target="")
+	{
+	if($target=="")return "<A HREF=\"".$address."\">".$text."</A>";
+	else return "<A HREF=\"".$address."\" TARGET=\"".$target."\">".$text."</A>";
+	}
+
+/** Make image button link **/
+public static function makeImageButtonLink($address,$image1,$image2,$width,$height,$index,$alt="")
+	{
+	return "<a href=\"".$address."\"><img src=\"".$image1."\" width=\"".$width."\" height=\"".$height."\" alt=\"".$alt."\" 
+								onMouseOver=\"window.document.images[".$index."].src='".$image2."';\"
+								onMouseOut=\"window.document.images[".$index."].src='".$image1."';\"></a>";
+	}
+
+/** Make image button link **/
+public static function makeImageButton($name,$image,$width,$height,$alt="",$onclick=0)
+	{
+	return "<img name=\"".$name."\" src=\"".$image."\" width=\"".$width."\" height=\"".$height."\" alt=\"".$alt."\" onClick=\"".$onclick."\">";
+	}
+
+/****************************************************************/
+/*	FORM METHODS												*/
+/* 	methods for rendering form components						*/
+/* in html pages												*/
+/****************************************************************/
+
+/** make Form Head **/
+public static function makeFormHead($action,$method="POST",$name=""){
+	if(strcmp($name,""))return "<FORM NAME=$name ACTION=".$action." METHOD=".$method.">";
+	else return "<FORM ACTION=".$action." METHOD=".$method.">";
+}
+
+/** make Form Foot **/
+public static function makeFormFoot(){
+	return "</FORM>";
+}
+
+/** make Input form component **/
+public static function makeInput($name,$size,$type="EDIT",$maxlength=0,$text=""){
+	return "<INPUT NAME=\"".$name."\" ID=\"".$name."\" TYPE=\"".$type."\" SIZE=".($maxlength?$maxlength:$size)." MAXLENGTH=".$size." VALUE=\"".$text."\">";
+	}
+
+/** make Hidden Input form component **/
+public static function makeHiddenInput($name,$value){
+	return "<INPUT NAME=\"".$name."\" ID=\"".$name."\" TYPE=\"HIDDEN\" VALUE=\"".$value."\">";
+}
+
+/** make text area form component **/
+public static function makeTextArea($name,$rows,$cols,$value="",$readonly=false){
+	if($readonly)$read="readonly";
+	else $read="";
+	return "<TEXTAREA NAME=\"".$name."\" ID=\"".$name."\" ROWS=\"".$rows."\" COLS=".$cols."\"  $read>".$value."</TEXTAREA>";
+}
+
+/** make button form component **/
+public static function makeButton($name,$text,$type="SUBMIT",$onclick=0){
+	if(!$onclick)return "<INPUT class=\"btn btn-primary btn-sm\" NAME=\"".$name."\" TYPE=\"".$type."\" VALUE=\"".$text."\">";
+	else return "<INPUT class=\"btn btn-primary btn-sm\" NAME=\"".$name."\" TYPE=\"".$type."\" VALUE=\"".$text."\" ONCLICK=\"".$onclick."\">";
+}
+
+/** make radio button form component **/
+public static function makeRadioButton($name,$value,$checked=""){
+	return "<INPUT NAME=\"".$name."\" TYPE=\"RADIO\" VALUE=\"".$value."\" ".($checked?"CHECKED":"").">";
+}
+
+/** make check box form component **/
+public static function makeCheckBox($name,$value,$checked="",$onclick=""){
+	return "<INPUT NAME=\"".$name."\" id=\"".$name."\" TYPE=\"CHECKBOX\" VALUE=\"".$value."\" ".($checked?"CHECKED":"").($onclick?" ONCLICK=\"".$onclick."\"":"").">";
+}
+
+
+/** make pull down option component from a result set object**/
+/** $name = name of option box
+	$resultSet = $resultSet object
+	$key = name of key in result set
+	$display = name of display text field in result set
+**/
+public static function makeOption($name,$resultSet,$key,$display,$selected=0){
+		$returnString="<SELECT NAME=".$name." ID=".$name.">";
+		while($row = $resultSet->fetch())
+			{
+			$returnString=$returnString."<OPTION VALUE=";
+			$returnString=$returnString.$row[$key];
+			if($row[$key]==$selected)$returnString=$returnString." SELECTED";
+			$returnString=$returnString.">";
+			$returnString=$returnString.$row[$display]."</OPTION>";
+			}
+ 		$returnString=$returnString."</SELECT>";
+		return $returnString;
+}
+
+public static function makeOptionMutiple($name,$resultSet,$key,$display,$size){
+		$returnString="<SELECT NAME=\"".$name."\" SIZE=\"".$size."\" MULTIPLE>";
+		while($row = $resultSet->fetch())
+			{
+				
+			$returnString=$returnString."<OPTION VALUE=\"";
+			$returnString=$returnString.$row[$key]."\"";
+			$returnString=$returnString.">";
+			$returnString=$returnString.$row[$display]."</OPTION>";
+			}
+ 		$returnString=$returnString."</SELECT>";
+		return $returnString;
+}
+
+
+/** make pull down option form component  **/
+/**	make on option box containing different dates
+	defaults from today for next 30 days
+**/
+
+public static function makeDateOption($name,$daysToList=30,$past=false,$selected=0){
+		$startDate=mktime();
+		$returnString="<SELECT NAME=\"".$name."\">\n";
+		$c=0;
+		while($daysToList){
+			if(!$past)$startDate = mktime (0,0,0,date("m"),date("d")+$c,  date("Y"));
+			else $startDate = mktime (0,0,0,date("m"),date("d")-$c,  date("Y"));
+			$sqlDate=date('Y-m-d',$startDate);
+			$returnString.="<OPTION VALUE=\"$sqlDate\"";
+			if($sqlDate==$selected)$returnString.=" SELECTED";
+			$returnString.=">".date('jS F Y',$startDate)."</OPTION>\n";
+			$c++;
+			$daysToList--;
+			}
+ 		$returnString=$returnString."</SELECT>\n";
+		return $returnString;
+}
+
+
+/** make pull down option form component  **/
+/**	make on option box containing different dates
+	from startDate to endDate
+**/
+
+public static function make2DateOption($name,$startDate,$endDate,$selected=0){
+
+		$returnString="<SELECT NAME=\"".$name."\">\n";
+		
+		while($startDate<=$endDate){
+			
+			$returnString=$returnString."<OPTION VALUE=\"";
+			$returnString=$returnString.date('Y-m-d',$startDate)."\"";
+			//echo "start ".date('Y-m-d',$startDate)." :: ".$selected."<br>";
+			if(date('Y-m-d',$startDate)==date('Y-m-d',$selected))$returnString=$returnString." SELECTED";
+			$returnString=$returnString.">";
+			$returnString=$returnString.date('D jS F Y',$startDate)."</OPTION>\n";
+			$startDate = $startDate+(24*60*60);
+			}
+ 		$returnString=$returnString."</SELECT>\n";
+		return $returnString;
+}
+
+/** make pull down option form component  **/
+/**	make on option box containing different times for 12 hours
+	defaults from 8am to 8pm at 30 minute intervals
+**/
+public static function makeTimeOption($name,$minutes=30,$startHour=8,$endHour=20){
+		$returnString="<SELECT NAME=\"".$name."\">\n";
+		$minuteCount=0;
+		while($startHour<=$endHour){
+			$time=mktime($startHour,$minuteCount,0,date("m"),date("d"),  date("Y"));
+			$returnString=$returnString."<OPTION VALUE=\"";
+			$returnString=$returnString.date('H:i:s',$time)."\"";
+			$returnString=$returnString.">";
+			$returnString=$returnString.date('g\:i A',$time)."</OPTION>\n";
+			$minuteCount+=$minutes;
+			if($minuteCount>=60){
+					$minuteCount=0;
+					$startHour++;
+				}
+		}
+ 		$returnString=$returnString."</SELECT>\n";
+return $returnString;
+}
+
+
+/** make pull down option form component  **/
+/**	use 2D array as input this time
+	column one contains the keys
+	column 2 contains the display text
+**/
+
+public static function makeArrayOption($name,$resultSet,$key,$arr,$selected=0){
+		$returnString="<SELECT NAME=\"".$name."\">\n";
+		while($row = $resultSet->fetchRow()){
+			$returnString.="<OPTION VALUE=\"";
+			$returnString.=$row[$key]."\"";
+			if($row[$key]==$selected)$returnString.=" SELECTED";
+			$returnString.=">";
+			foreach($arr as $n)$returnString.=$row[$n]." ";
+			$returnString.="</OPTION>\n";
+			}
+ 		$returnString.="</SELECT>\n";
+		return $returnString;
+}
+
+
+/** make pull down option form component  **/
+/**	use 2D array as input this time
+	column one contains the keys
+	column 2 contains the display text
+**/
+public static function makeOptionFromArray($name,$arr,$selected=0,$onChange=0){
+		if($onChange)$ocs="onChange=$onChange";else $ocs="";
+		$returnString="<SELECT NAME=\"".$name."\" id=\"".$name."\" $ocs>";
+		$n=count($arr);
+		$c=0;
+		while($c<$n){
+			$returnString.="<OPTION VALUE=\"";
+			$returnString.=$arr[$c][0]."\"";
+			if($arr[$c][0]==$selected)$returnString.=" SELECTED";
+			$returnString.=">";
+			$returnString.=$arr[$c][1];
+			$returnString.="</OPTION>";
+			$c++;
+			}
+ 		$returnString.="</SELECT>";
+		return $returnString;
+}
+
+public static function makeMultipleOptionFromArray($name,$arr,$selected=0){
+		$ret="<SELECT NAME=\"".$name."\" SIZE=5 MULTIPLE>\n";
+		$n=count($arr);
+		$c=0;
+		while($c<$n){
+			$ret.="<OPTION VALUE=\"";
+			$ret.=$arr[$c][0]."\"";
+			if($arr[0]==$selected)$ret.=" SELECTED";
+			$ret.=">";
+			$ret.=$arr[$c][1];
+			$ret.="</OPTION>\n";
+			$c++;
+			}
+ 		
+		$ret.="</SELECT>\n";
+		return $ret;
+}
+/****************************************************************/
+/*	UTILITY METHODS												*/
+/****************************************************************/
+
+/** get current time **/
+public static function getTime(){
+	date_default_timezone_set('UTC');
+	return date('H:i:s',mkTime(date("H"),date("i"),date("s"),date("m"),date("d"),date("Y")));
+}
+
+/** get current date **/ 
+public static function getToday(){
+	return date('jS M Y',mkTime(0,0,0,date("m"),date("d"),date("Y")));
+}
+
+/** get date in sql format **/
+public static function getSQLDate($days,$months,$years){
+	return $years."-".($months<10?"0".$months:$months)."-".($days<10?"0".$days:$days);
+}
+
+/** get today's date in sql format **/
+public static function getTodayAsSQLDate(){
+	return date('Y-m-d',mkTime(0,0,0,date("m"),date("d"),date("Y")));
+}
+
+/** get today's date in sql format **/
+public static function getNowAsSQLTimeStamp(){
+	return date("Y-m-d H:i:s");
+}
+
+/** get formatted date object from an SQL date **/
+public static function getShortDateFromSQL($date){
+	 $parts=explode("-",$date);
+	 //var_dump($parts);
+	 return date('j/m/y',mkTime(0,0,0,$parts[1],$parts[2],$parts[0]));
+}
+
+/** get formatted date object from an SQL date **/
+public static function getDateFromSQL($date){
+	 $parts=explode("-",$date);
+	 //var_dump($parts);
+	 if(count($parts)<3)return "";
+	 return date('jS F Y',mkTime(0,0,0,$parts[1],$parts[2],$parts[0]));
+}
+
+/** get formatted date object from an SQL date **/
+public static function getDayFromSQL($date){
+	 $parts=explode("-",$date);
+	 //var_dump($parts);
+	 return date('jS',mkTime(0,0,0,$parts[1],$parts[2],$parts[0]));
+}
+
+/** get formatted date object from an SQL date **/
+public static function getYearFromSQL($date){
+	 $parts=explode("-",$date);
+	 //var_dump($parts);
+	 return date('Y',mkTime(0,0,0,$parts[1],$parts[2],$parts[0]));
+}
+
+
+/** get formatted date object from an SQL date **/
+public static function getMonthAndYearFromSQL($date){
+	 $parts=explode("-",$date);
+	 //var_dump($parts);
+	 return date('F Y',mkTime(0,0,0,$parts[1],$parts[2],$parts[0]));
+}
+
+/** get formatted date object from an SQL date **/
+public static function getMonthFromSQL($date){
+	 $parts=explode("-",$date);
+	 //var_dump($parts);
+	 return date('M',mkTime(0,0,0,$parts[1],$parts[2],$parts[0]));
+}
+
+/** get formatted date object from an SQL date **/
+public static function getSQLDateFromSlashFormat($date){
+	 $parts=explode("/",$date);
+	 //var_dump($parts);
+	 return $parts[2]."-".$parts[1]."-".$parts[0];
+}
+
+/** get timestamp as an array of time and date **/
+public static function getTimeStampAsDateTimeArray($timestamp){
+	$timestamp = strtotime($timestamp);
+	$date = date('d-m-Y', $timestamp);
+	$time = date('G:i:s', $timestamp);
+	return array($date,$time);
+}
+
+	
+	/** validate form input for set **/
+	public static function isNotEmpty($name){
+		if(!isset($name) || !strcmp($name,""))return false;
+		return true;
+	}
+	
+	/** validate form input for set **/
+	public static function isEmpty($name){
+		if(!isset($name) || !strcmp($name,""))return true;
+		return false;
+	}
+	
+	public static function  isValidEmail($email) {
+ 		if (!filter_var($email, FILTER_VALIDATE_EMAIL))return false;
+		return true;
+	}
+	
+	/**
+	 * get a Random string that represents a password
+	 * @param minimum length
+	 * @param maximum length
+	 *
+	 * @return a random string
+	 */
+	public static function getRandomPassword($min,$max){
+		$chars=array(	'a','b','c','d','e','f','g','h','i','j','k','l','m','n','o','p','q','r','s','t','u','v','w','x','y','z',
+					'A','B','C','D','E','F','G','H','I','J','K','L','M','N','O','P','Q','R','S','T','U','V','W','X','Y','Z',
+					'1','2','3','4','5','6','7','8','9','0');
+		$str="";
+		for($i=0;$i<($min+rand(0,($max-$min)));$i++)
+			{
+			$ind=rand(0,count($chars)-1);
+			$str.=$chars[$ind];
+			//echo $ind." :: ".$chars[$ind]." :: ".$str."<br>";
+			}
+		
+		return $str;
+	}
+
+	
+	/*
+	 * DEALING WITH ENUMS
+	 */
+	
+ 	public static function getEnumAsPullDown($objDB, $name,$table,$field,$selected=0){
+		$vals=htmlPage::getEnumVals($objDB, $table,$field);
+		$opts=array();$c=0;
+		foreach($vals as $val){
+			$opts[$c][0]=$opts[$c][1]=$val;
+			$c++;
+		}
+		return htmlPage::makeOptionFromArray($name,$opts,$selected);
+	}
+	
+	/**
+	 * get field values from a mysql enum field
+	 **/
+	 
+	public static function getEnumVals( $objDB, $table , $field ){
+		$sql = " SHOW COLUMNS FROM $table LIKE '$field'";
+		$fields=$objDB->select($sql);
+		$row = $fields->fetch();
+		#extract the values
+		#the values are enclosed in single quotes
+		#and separated by commas
+		//echo $row[1];
+		$regex = "/'(.*?)'/";
+		preg_match_all( $regex , $row["Type"], $enum_array );
+		$enum_fields = $enum_array[1];
+		$vals=array();
+		foreach($enum_fields as $enum){
+			array_push($vals,str_replace("'","",$enum));
+		}
+		return( $vals );
+	} 
+	
+}
+

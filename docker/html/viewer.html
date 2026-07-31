@@ -1,0 +1,313 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TheseusViewer - Direct Manifest Link</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: #f8f9fa;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        .viewer-container {
+            width: 100%;
+            height: 100vh;
+            background: white;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+        }
+
+        .viewer-frame {
+            width: 100%;
+            height: 100%;
+            border: none;
+        }
+
+        .error-container {
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            background: #f8f9fa;
+            color: #2c3e50;
+            text-align: center;
+            padding: 20px;
+        }
+
+        .error-container h1 {
+            color: #e74c3c;
+            margin-bottom: 20px;
+            font-size: 2em;
+        }
+
+        .error-container p {
+            margin-bottom: 15px;
+            max-width: 600px;
+            line-height: 1.6;
+        }
+
+        .example {
+            background: #ecf0f1;
+            padding: 15px;
+            border-radius: 8px;
+            font-family: monospace;
+            margin: 20px 0;
+            word-break: break-all;
+            max-width: 800px;
+        }
+
+        .loading {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            background: #f8f9fa;
+            font-size: 1.2em;
+            color: #3498db;
+        }
+
+        .loading::after {
+            content: '...';
+            animation: loading 2s infinite;
+        }
+
+        @keyframes loading {
+            0%, 20% { content: ''; }
+            40% { content: '.'; }
+            60% { content: '..'; }
+            80%, 100% { content: '...'; }
+        }
+
+        .header-info {
+            position: fixed;
+            top: 10px;
+            right: 10px;
+            background: rgba(52, 152, 219, 0.9);
+            color: white;
+            padding: 8px 12px;
+            border-radius: 4px;
+            font-size: 12px;
+            z-index: 1000;
+            max-width: 300px;
+            word-break: break-word;
+        }
+
+        .header-info.minimized {
+            width: 30px;
+            height: 30px;
+            border-radius: 50%;
+            padding: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            overflow: hidden;
+        }
+
+        .header-info.minimized .manifest-url {
+            display: none;
+        }
+
+        .header-info.minimized::before {
+            content: 'ℹ️';
+        }
+    </style>
+</head>
+<body>
+    <div id="loading" class="loading">Loading TheseusViewer</div>
+    
+    <div id="error-container" class="error-container" style="display: none;">
+        <h1>📚 TheseusViewer - Direct Manifest Link</h1>
+        <p><strong>No manifest URL provided!</strong></p>
+        <p>This page loads manifests directly via URL parameters. To use it, add your manifest URL like this:</p>
+        
+        <div class="example">
+            https://biblhertz.github.io/Manifest_Server/viewer.html?manifest=https://your-manifest-url.json
+        </div>
+
+        <p><strong>Example with your manifest:</strong></p>
+        <div class="example">
+            https://biblhertz.github.io/Manifest_Server/viewer.html?manifest=https://liladude.github.io/Manifest_server/garofalo-ligorio-comparison.json
+        </div>
+
+        <p>This creates clean, shareable links for specific manifests without needing manual input.</p>
+    </div>
+
+    <div id="viewer-container" class="viewer-container" style="display: none;">
+        <div id="manifest-info" class="header-info">
+            <div class="manifest-url"></div>
+        </div>
+        <iframe id="theseus-frame" class="viewer-frame" src="about:blank"></iframe>
+    </div>
+
+    <script>
+        // Debug mode for local testing
+        const DEBUG = window.location.protocol === 'file:' || window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+        
+        function log(message, data = '') {
+            if (DEBUG) {
+                console.log(`[TheseusViewer Debug] ${message}`, data);
+            }
+        }
+
+        // Get manifest URL from query parameters
+        function getManifestFromURL() {
+            const urlParams = new URLSearchParams(window.location.search);
+            const manifest = urlParams.get('manifest');
+            log('URL parameters:', window.location.search);
+            log('Extracted manifest:', manifest);
+            return manifest;
+        }
+
+        // Initialize the viewer
+        function initializeViewer() {
+            log('Initializing viewer...');
+            const manifestUrl = getManifestFromURL();
+            
+            if (!manifestUrl) {
+                // No manifest provided - show error
+                log('No manifest URL found');
+                document.getElementById('loading').style.display = 'none';
+                document.getElementById('error-container').style.display = 'flex';
+                document.title = 'TheseusViewer - No Manifest';
+                
+                // For local testing, show current URL
+                if (DEBUG) {
+                    const currentUrl = window.location.href;
+                    const exampleUrl = currentUrl.split('?')[0] + '?manifest=https://liladude.github.io/Manifest_server/garofalo-ligorio-comparison.json';
+                    document.querySelector('.example:last-of-type').innerHTML = exampleUrl;
+                }
+                return;
+            }
+
+            // Validate URL format
+            try {
+                new URL(manifestUrl);
+                log('Manifest URL is valid:', manifestUrl);
+            } catch (e) {
+                log('Invalid manifest URL:', manifestUrl);
+                document.getElementById('loading').style.display = 'none';
+                document.getElementById('error-container').style.display = 'flex';
+                document.getElementById('error-container').innerHTML = `
+                    <h1>❌ Invalid Manifest URL</h1>
+                    <p>The provided URL is not valid:</p>
+                    <div class="example">${manifestUrl}</div>
+                    <p>Please check the URL and try again.</p>
+                `;
+                return;
+            }
+
+            // Create TheseusViewer URL
+            const theseusUrl = `https://theseusviewer.org/?manifest=${encodeURIComponent(manifestUrl)}`;
+            log('TheseusViewer URL:', theseusUrl);
+            
+            // Update page elements
+            const manifestName = manifestUrl.split('/').pop().replace('.json', '') || 'Manifest';
+            document.title = `TheseusViewer - ${manifestName}`;
+            document.querySelector('.manifest-url').textContent = `📚 ${manifestName}`;
+            
+            // Setup iframe
+            const iframe = document.getElementById('theseus-frame');
+            
+            // Add loading timeout
+            const loadingTimeout = setTimeout(() => {
+                log('Loading timeout reached');
+                document.getElementById('loading').style.display = 'none';
+                document.getElementById('error-container').style.display = 'flex';
+                document.getElementById('error-container').innerHTML = `
+                    <h1>⏰ Loading Timeout</h1>
+                    <p>The viewer is taking too long to load. This might be due to:</p>
+                    <ul style="text-align: left; max-width: 500px;">
+                        <li>Network connectivity issues</li>
+                        <li>TheseusViewer service being unavailable</li>
+                        <li>The manifest URL being inaccessible</li>
+                    </ul>
+                    <p><strong>Manifest URL:</strong></p>
+                    <div class="example">${manifestUrl}</div>
+                    <p><strong>Try opening directly:</strong></p>
+                    <div class="example"><a href="${theseusUrl}" target="_blank" style="color: #3498db;">${theseusUrl}</a></div>
+                `;
+            }, 30000); // 30 second timeout
+
+            // Handle iframe loading
+            iframe.onload = function() {
+                log('Iframe loaded successfully');
+                clearTimeout(loadingTimeout);
+                
+                // Small delay to ensure TheseusViewer initializes
+                setTimeout(() => {
+                    document.getElementById('loading').style.display = 'none';
+                    document.getElementById('viewer-container').style.display = 'block';
+                }, 1000);
+            };
+
+            iframe.onerror = function(error) {
+                log('Iframe error:', error);
+                clearTimeout(loadingTimeout);
+                document.getElementById('loading').style.display = 'none';
+                document.getElementById('error-container').style.display = 'flex';
+                document.getElementById('error-container').innerHTML = `
+                    <h1>❌ Failed to Load TheseusViewer</h1>
+                    <p>Could not load TheseusViewer. This might be due to:</p>
+                    <ul style="text-align: left; max-width: 500px;">
+                        <li>Network connection issues</li>
+                        <li>TheseusViewer service being down</li>
+                        <li>Browser security restrictions</li>
+                    </ul>
+                    <p><strong>Manifest URL:</strong></p>
+                    <div class="example">${manifestUrl}</div>
+                    <p><strong>Try opening directly:</strong></p>
+                    <div class="example"><a href="${theseusUrl}" target="_blank" style="color: #3498db;">Open in new tab</a></div>
+                `;
+            };
+
+            // Set iframe source
+            log('Setting iframe source...');
+            iframe.src = theseusUrl;
+
+            // Add info panel toggle
+            const infoPanel = document.getElementById('manifest-info');
+            setTimeout(() => {
+                infoPanel.classList.add('minimized');
+                infoPanel.addEventListener('click', function() {
+                    if (this.classList.contains('minimized')) {
+                        this.classList.remove('minimized');
+                        setTimeout(() => {
+                            this.classList.add('minimized');
+                        }, 3000);
+                    }
+                });
+            }, 5000); // Give more time before minimizing
+        }
+
+        // Handle URL changes (for single-page app behavior)
+        window.addEventListener('popstate', function() {
+            log('URL changed, reloading...');
+            location.reload();
+        });
+
+        // Initialize when page loads
+        document.addEventListener('DOMContentLoaded', function() {
+            log('DOM loaded, starting initialization...');
+            log('Current URL:', window.location.href);
+            initializeViewer();
+        });
+
+        // Add global error handler for debugging
+        if (DEBUG) {
+            window.addEventListener('error', function(event) {
+                console.error('[TheseusViewer Error]', event.error);
+            });
+        }
+    </script>
+</body>
+</html>

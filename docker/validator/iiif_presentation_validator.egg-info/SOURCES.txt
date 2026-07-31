@@ -1,0 +1,13 @@
+README.md
+iiif-presentation-validator.py
+setup.py
+iiif_presentation_validator.egg-info/PKG-INFO
+iiif_presentation_validator.egg-info/SOURCES.txt
+iiif_presentation_validator.egg-info/dependency_links.txt
+iiif_presentation_validator.egg-info/requires.txt
+iiif_presentation_validator.egg-info/top_level.txt
+schema/__init__.py
+schema/error_processor.py
+schema/schemavalidator.py
+tests/__init__.py
+tests/test_validator.py

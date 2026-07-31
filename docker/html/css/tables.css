@@ -1,0 +1,36 @@
+@charset "UTF-8";
+
+.tableset {
+  font-family: Arial, Helvetica, sans-serif;
+  font-size: 12px;
+  border-collapse: collapse;
+  width: 100%;
+}
+
+.tableset td {
+  border: 1px solid #ddd;
+  padding: 2px;
+  width: 25%;
+}
+
+.tableset th {
+  border: 1px solid #ddd;
+  padding: 2px;
+  width: 75%;
+  vertical-align: top;
+}
+
+.tableset tr:nth-child(even){background-color: #f2f2f2;}
+
+.tableset tr:hover {background-color: #ddd;}
+
+.thumbnail {padding: 10px;}
+
+/*
+.tableset th {
+  padding-top: 12px;
+  padding-bottom: 12px;
+  text-align: left;
+  /*background-color: #04AA6D;
+  color: white;
+}*/

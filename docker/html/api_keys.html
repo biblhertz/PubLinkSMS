@@ -1,0 +1,204 @@
+<?php
+/**
+ * api_keys.html — API key management UI
+ *
+ * Session-protected interface for creating and revoking API keys.
+ * Login uses the credentials from config.ini [credentials] (username / password).
+ * A successful login sets $_SESSION['api_admin_auth'].
+ *
+ * GET parameters:
+ *   logout=1  — destroys the session and redirects to /index.html
+ *
+ * POST actions (field: action):
+ *   login   — authenticates with username + password
+ *   create  — generates a new API key; required fields: key_name (string),
+ *              endpoints[] (int[]) — IDs of the endpoints the key may access.
+ *              The raw key is shown once; only a bcrypt hash and 8-char prefix
+ *              are stored in the database.
+ *   delete  — deletes the key identified by key_id (int)
+ */
+session_start();
+
+require 'vendor/autoload.php';
+
+use Biblhertz\Manifest_Server\pages\Manifest_Server_Page;
+use Biblhertz\Manifest_Server\om\ApiKey;
+use Biblhertz\Manifest_Server\om\ApiEndpoint;
+use Biblhertz\Manifest_Server\Config;
+
+Config::setup();
+
+// ── Logout ────────────────────────────────────────────────────────────────────
+if (isset($_GET['logout'])) {
+    session_destroy();
+    header('Location: /index.html');
+    exit;
+}
+
+// ── Login POST ────────────────────────────────────────────────────────────────
+$loginError = '';
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'login') {
+    $user = $_POST['username'] ?? '';
+    $pw   = $_POST['password'] ?? '';
+    if ($user === Config::$API_USERNAME && $pw === Config::$API_PASSWORD) {
+        $_SESSION['api_admin_auth'] = true;
+        header('Location: /api_keys.html');
+        exit;
+    }
+    $loginError = 'Invalid credentials.';
+}
+
+// ── Show login form if not authenticated ──────────────────────────────────────
+if (empty($_SESSION['api_admin_auth'])) {
+    $page = new Manifest_Server_Page();
+    $page->setHeading('API Key Management');
+
+    $errorHtml = $loginError
+        ? '<div class="alert alert-danger">' . htmlspecialchars($loginError) . '</div>'
+        : '';
+
+    $page->setCentralContent(
+        $errorHtml .
+        '<form method="POST" action="api_keys.html" style="max-width:320px">' .
+        '<input type="hidden" name="action" value="login">' .
+        '<div class="form-group mb-2"><label>Username</label>' .
+        '<input type="text" name="username" class="form-control" required autofocus></div>' .
+        '<div class="form-group mb-3"><label>Password</label>' .
+        '<input type="password" name="password" class="form-control" required></div>' .
+        '<button type="submit" class="btn btn-primary">Login</button>' .
+        '</form>'
+    );
+    echo $page->getPage();
+    exit;
+}
+
+// ── Authenticated — handle actions ────────────────────────────────────────────
+$page  = new Manifest_Server_Page();
+$db    = Config::getDB();
+$flash = '';
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'create') {
+    $name        = trim($_POST['key_name'] ?? '');
+    $endpointIds = array_map('intval', (array) ($_POST['endpoints'] ?? []));
+
+    if ($name === '' || empty($endpointIds)) {
+        $flash = '<div class="alert alert-warning">Please provide a name and select at least one endpoint.</div>';
+    } else {
+        $created = ApiKey::create($db, htmlspecialchars($name, ENT_QUOTES), $endpointIds);
+        $flash   = '<div class="alert alert-success">'
+                 . '<strong>Key created.</strong> Copy it now — it will not be shown again.<br/>'
+                 . '<div style="display:flex;align-items:center;gap:0.5rem;margin-top:0.5rem;flex-wrap:wrap">'
+                 . '<code id="new-api-key" style="word-break:break-all;font-size:0.95em;flex:1;min-width:0">'
+                 . htmlspecialchars($created['key'])
+                 . '</code>'
+                 . '<button type="button" onclick="copyApiKey()" id="copy-btn"'
+                 . ' class="btn btn-sm btn-outline-dark" style="white-space:nowrap">Copy</button>'
+                 . '</div>'
+                 . '</div>'
+                 . '<script>'
+                 . 'function copyApiKey(){'
+                 . 'var key=document.getElementById("new-api-key").textContent;'
+                 . 'navigator.clipboard.writeText(key).then(function(){'
+                 . 'var btn=document.getElementById("copy-btn");'
+                 . 'btn.textContent="Copied!";'
+                 . 'btn.classList.add("btn-success");btn.classList.remove("btn-outline-dark");'
+                 . 'setTimeout(function(){btn.textContent="Copy";'
+                 . 'btn.classList.remove("btn-success");btn.classList.add("btn-outline-dark");},2000);'
+                 . '});}'
+                 . '</script>';
+    }
+}
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'delete') {
+    $id = (int) ($_POST['key_id'] ?? 0);
+    if ($id > 0) {
+        $key = new ApiKey($db, $id);
+        $key->delete();
+        $flash = '<div class="alert alert-info">Key deleted.</div>';
+    }
+}
+
+// ── Build keys table ──────────────────────────────────────────────────────────
+$keys      = ApiKey::getAll($db);
+$endpoints = ApiEndpoint::getAll($db);
+
+$keysTable  = '<table class="table table-bordered table-sm">';
+$keysTable .= '<thead class="thead-light"><tr>'
+            . '<th>Name</th><th>Prefix</th><th>Endpoints</th>'
+            . '<th>Created</th><th>Last used</th><th>Active</th><th></th>'
+            . '</tr></thead><tbody>';
+
+if (empty($keys)) {
+    $keysTable .= '<tr><td colspan="7" class="text-muted">No keys yet.</td></tr>';
+} else {
+    foreach ($keys as $key) {
+        $epList      = implode(', ', $key->getEndpointNames()) ?: '—';
+        $lastUsed    = $key->getLastUsed() ?? '—';
+        $activeBadge = $key->isActive()
+            ? '<span class="badge badge-success">active</span>'
+            : '<span class="badge badge-secondary">revoked</span>';
+
+        $deleteForm = '<form method="POST" action="api_keys.html"'
+                    . ' onsubmit="return confirm(\'Delete this key?\');" style="margin:0">'
+                    . '<input type="hidden" name="action" value="delete">'
+                    . '<input type="hidden" name="key_id" value="' . $key->getID() . '">'
+                    . '<button type="submit" class="btn btn-danger btn-sm">Delete</button>'
+                    . '</form>';
+
+        $keysTable .= '<tr>'
+                    . '<td>'        . htmlspecialchars($key->getName())           . '</td>'
+                    . '<td><code>' . htmlspecialchars($key->getKeyPrefix()) . '…</code></td>'
+                    . '<td><small>' . htmlspecialchars($epList)                   . '</small></td>'
+                    . '<td><small>' . htmlspecialchars($key->getCreatedAt())      . '</small></td>'
+                    . '<td><small>' . htmlspecialchars($lastUsed)                 . '</small></td>'
+                    . '<td>'        . $activeBadge                                . '</td>'
+                    . '<td>'        . $deleteForm                                 . '</td>'
+                    . '</tr>';
+    }
+}
+$keysTable .= '</tbody></table>';
+
+// ── Build create form ─────────────────────────────────────────────────────────
+$checkboxes = '';
+foreach ($endpoints as $ep) {
+    $checkboxes .= '<div class="form-check">'
+                 . '<input class="form-check-input" type="checkbox"'
+                 . ' name="endpoints[]" id="ep_' . $ep->getID() . '"'
+                 . ' value="' . $ep->getID() . '">'
+                 . '<label class="form-check-label" for="ep_' . $ep->getID() . '">'
+                 . htmlspecialchars($ep->getName())
+                 . ' <small class="text-muted">— ' . htmlspecialchars($ep->getDescription()) . '</small>'
+                 . '</label>'
+                 . '</div>';
+}
+
+$createForm = '<form method="POST" action="api_keys.html">'
+            . '<input type="hidden" name="action" value="create">'
+            . '<div class="form-group mb-2">'
+            . '<label for="key_name"><strong>Key name</strong></label>'
+            . '<input type="text" class="form-control" id="key_name" name="key_name"'
+            . ' placeholder="e.g. PubLink integration" required style="max-width:400px">'
+            . '</div>'
+            . '<div class="form-group mb-3">'
+            . '<label><strong>Allowed endpoints</strong></label><br/>'
+            . $checkboxes
+            . '</div>'
+            . '<button type="submit" class="btn btn-primary">Generate key</button>'
+            . '</form>';
+
+// ── Assemble page ─────────────────────────────────────────────────────────────
+$logoutBtn = '<a href="api_keys.html?logout=1" class="btn btn-outline-secondary btn-sm">Logout</a>';
+
+$content  = '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.75rem">'
+          . '<h4 style="margin:0">API Keys</h4>'
+          . $logoutBtn
+          . '</div>';
+$content .= $flash;
+$content .= $keysTable;
+$content .= '<hr/><h4 style="margin-bottom:0.75rem">Generate new key</h4>';
+$content .= $createForm;
+
+$page->setHeading('API Key Management');
+$page->setCentralContent($content);
+echo $page->getPage();
+?>
