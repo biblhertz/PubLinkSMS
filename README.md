@@ -1,4 +1,4 @@
-# Simple Manifest Server
+# PubLink Simple Manifest Server
 A lightweight PHP server for storing and serving [IIIF](https://iiif.io/) manifests, built for the [Bibliotheca Hertziana](https://www.biblhertz.it/). Manifests are linked to research publications managed in OJS. Public read access is open; write and delete operations require authentication. All manifests are validated against the [IIIF Presentation Validator](https://github.com/IIIF/presentation-validator) before storage.
 
 > This repository is a sanitized public release derived from the institution's internal development history. Commit history was reset to remove internal artifacts; it does not reflect the full development record of the original project.
