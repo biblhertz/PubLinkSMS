@@ -1,3 +1,13 @@
+# Pinned for the same reason PubLink-Public pins its own project name: this
+# repo's docker/ directory shares that literal name with PubLink-Public's,
+# and Simple Manifest Server is meant to be run alongside it -- without an
+# explicit name both default to Compose project "docker" and collide (image
+# tags overwrite each other, container_name values fight over one container).
+# Container names below are also prefixed (sms_*) rather than left as the
+# bare web/mysql/php-fpm PubLink-Public itself uses, since container_name is
+# independent of project name and isn't covered by pinning this alone.
+name: publinksms
+
 networks:
   manifest-server-network:
     driver: bridge
@@ -7,7 +17,7 @@ services:
      context: .
      dockerfile: nginx.Dockerfile
     restart: always
-    container_name: web
+    container_name: sms_web
     ports:
       - '${HTTP_PORT:-8080}:80'
     depends_on:
@@ -23,7 +33,7 @@ services:
       context: .
       dockerfile: php.Dockerfile
     restart: always
-    container_name: php-fpm
+    container_name: sms_php_fpm
     environment:
       DB_HOST: ${DB_HOST:-mysql}
       DB_NAME: ${DB_NAME:-manifest_server}
@@ -52,7 +62,7 @@ services:
       context: .
       dockerfile: mysql.Dockerfile
     restart: always
-    container_name: mysql
+    container_name: sms_mysql
     environment:
       MYSQL_ROOT_PASSWORD: ${DB_PASSWORD}
       MYSQL_ALLOW_EMPTY_PASSWORD: 'yes'
@@ -75,6 +85,6 @@ services:
       context: .
       dockerfile: validator.Dockerfile
     restart: always
-    container_name: validator
+    container_name: sms_validator
     networks:
       - manifest-server-network
